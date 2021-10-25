@@ -1,0 +1,33 @@
+name: Build for a release
+on:
+    push:
+        # tags:
+        #    - '*'
+
+jobs:
+    retrieve-toolchain:
+        runs-on: windows-latest
+        steps:
+            # - name: Update Visual Studio installation
+            #   shell: powershell
+            #   run: |
+            #     'C:\Program Files (x86)\Microsoft Visual Studio\Installer\vs_installer.exe' --add Microsoft.VisualStudio.Workload.NativeDesktop --add Microsoft.VisualStudio.Component.VC.ATLMFC --includeRecommended
+            - name: Download and extract depot_tools
+              shell: powershell
+              run: curl -o depot_tools.zip https://storage.googleapis.com/chrome-infra/depot_tools.zip; Expand-Archive -LiteralPath depot_tools.zip
+            - name: Remove unused MSVC versions # This is required to make the next step run properly
+              shell: powershell
+              run: cd 'C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\VC'; Remove-Item *\MSVC\14.16.* -Recurse -Force; Remove-Item *\MSVC\14.25.* -Recurse -Force
+            - name: Collect toolchain
+              shell: powershell
+              run: python3 .\depot_tools\win_toolchain\package_from_installed.py 2019 --noarm -w 10.0.19041.0
+            - name: Encrypt toolchain archive
+              shell: powershell
+              run: 7z a -p"$env:TOOLCHAIN_ARTIFACT_KEY" toolchain.zip *.zip
+              env:
+                TOOLCHAIN_ARTIFACT_KEY: ${{ secrets.TOOLCHAIN_ARTIFACT_KEY }}
+            - name: Upload toolchain archive
+              uses: actions/upload-artifact@v2
+              with:
+                name: toolchain
+                path: toolchain.zip
